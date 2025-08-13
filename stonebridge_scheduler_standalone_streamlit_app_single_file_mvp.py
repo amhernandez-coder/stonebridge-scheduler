@@ -197,6 +197,41 @@ def build_pairings_from_roster(roster_df: pd.DataFrame, month_label: str,
                         violations.append({"Month": month_label, "Date": to_mmddyyyy(date), "Location": loc,
                                            "Issue": "Lubbock Mon/Wed: Missing Tara/Maura for Gaston"})
 
+        # Dual‑tester rule for Amanda Eberle (enforced whenever she's scheduled; preference: Maura Brown + Dmitriy Lazarevich)
+        if any(i == "Amanda Eberle" for i in interviewers):
+            preferred = ["Maura Brown", "Dmitriy Lazarevich"]
+            assigned = []
+            # Try preferred first
+            for p in preferred:
+                if p in lpas and p not in assigned:
+                    assigned.append(p)
+                    lpas.remove(p)
+                if len(assigned) == 2:
+                    break
+            # Fill remaining from any available LPAs on this site/day
+            while len(assigned) < 2 and lpas:
+                nxt = lpas.pop(0)
+                if nxt not in assigned:
+                    assigned.append(nxt)
+            # Emit rows (two tester events for Eberle)
+            for t in assigned:
+                final_rows.append({
+                    "Date": date, "Location": loc, "Interviewer": "Amanda Eberle", "Tester": t,
+                    "Notes": "Dual tester requirement (Eberle)", "Month": month_label,
+                    "PsychometricianPair": False
+                })
+            # Remove Amanda from pool and log violation if short
+            try:
+                interviewers.remove("Amanda Eberle")
+            except ValueError:
+                pass
+            if len(assigned) < 2:
+                missing = 2 - len(assigned)
+                violations.append({
+                    "Month": month_label, "Date": to_mmddyyyy(date), "Location": loc,
+                    "Issue": f"Amanda Eberle requires 2 testers (short {missing})"
+                })
+
         # General pairing rules (Spanish optional; SA psychometrician cap = 1/day)
         used_psych = False
         for interviewer in list(interviewers):
